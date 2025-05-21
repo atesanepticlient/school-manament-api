@@ -445,7 +445,7 @@ export const fetchCourse = async (
     return successResponse(res, {
       statusCode: 200,
       data: {
-        studentCount : studentCount?.students?.length || 0,
+        studentCount: studentCount?.students?.length || 0,
         course: formattedCourse,
       },
     });
@@ -463,7 +463,7 @@ export const joinQuiz = async (
     const { id: quizId } = req.params;
     const userId = req.user._id;
 
-    // 1. Find the quiz
+    // 1. Find the quiz and populate its lesson with course reference
     const quiz = await Quiz.findById(quizId).populate({
       path: "lesson",
       select: "_id course",
@@ -481,7 +481,7 @@ export const joinQuiz = async (
       throw createError(404, "Course not found");
     }
 
-    // 3. Update course progress
+    // 3. Find or create progress document for this user and course
     let progress = await Progress.findOne({
       user: userId,
       course: courseId,
@@ -491,22 +491,24 @@ export const joinQuiz = async (
       progress = await Progress.create({
         user: userId,
         course: courseId,
-        completedQuizzes: [quizId],
+        completedQuizzes: [],
+        completedLessons: [],
       });
-    } else if (!progress.completedQuizzes.includes(quizId)) {
-      progress.completedQuizzes.push(quizId);
+    }
+
+    // 4. Add this quiz to completedQuizzes if not already completed
+    if (!progress.completedQuizzes.includes(quiz._id)) {
+      progress.completedQuizzes.push(quiz._id);
       await progress.save();
     }
 
     return successResponse(res, {
       statusCode: 200,
-      message: "Quiz joined and progress updated",
-      data: {
-        progress,
-      },
+      message: "Quiz joined and progress updated successfully",
+      data: { progress },
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error);
   }
 };
 
